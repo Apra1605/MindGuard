@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Face Emotion Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --skin: #e7b79b;
+        --paper: rgba(255, 248, 242, 0.9);
+        --ink: #453128;
+        --muted: #7c5f52;
+        --line: rgba(92, 63, 48, 0.16);
+        --accent: #8f5e4d;
+        --accent-deep: #6e5146;
+        --teal: #6aa5a0;
+        --shadow: 0 20px 40px rgba(78, 47, 31, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        font-family: "Manrope", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 238, 225, 0.42), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(194, 224, 218, 0.3), transparent 26%),
+          linear-gradient(180deg, #ecc3aa 0%, var(--skin) 100%);
+      }
+
+      code {
+        font-family: "Space Grotesk", monospace;
+        font-size: 0.92em;
+      }
+
+      .layout {
+        width: min(420px, calc(100% - 24px));
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 12px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .face-readout-label,
+      .face-readout-label,
+      .face-preview-title {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.74rem;
+        font-weight: 800;
+      }
+
+      .face-preview-title,
+      .emotion-label,
+      .metric-value {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        letter-spacing: -0.03em;
+      }
+
+      .face-preview-subtitle,
+      .face-readout-value {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .face-preview,
+      .face-readout,
+      .metric-box,
+      .blendshape-panel {
+        border: 1px solid var(--line);
+        background: var(--paper);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .info-card {
+        padding: 18px;
+        border-radius: 20px;
+      }
+
+      .info-card h2 {
+        margin-bottom: 10px;
+        font-size: 1.1rem;
+      }
+
+      .face-preview {
+        width: 100%;
+        padding: 16px;
+        border-radius: 24px;
+      }
+
+      .face-preview.invisible {
+        opacity: 0.6;
+      }
+
+      .face-preview-header,
+      .blendshape-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .face-preview-subtitle {
+        font-size: 0.8rem;
+        margin-top: 4px;
+      }
+
+      .face-preview-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+
+      .status-badge,
+      .chip,
+      .tag,
+      .face-preview-button {
+        border-radius: 999px;
+        font-weight: 700;
+      }
+
+      .status-badge,
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 11px;
+        font-size: 0.76rem;
+      }
+
+      .status-badge.loading,
+      .chip {
+        background: rgba(106, 165, 160, 0.12);
+        color: #4a726f;
+      }
+
+      .status-badge.ready {
+        background: rgba(106, 165, 160, 0.16);
+        color: #466d6a;
+      }
+
+      .status-badge.active {
+        background: rgba(143, 94, 77, 0.14);
+        color: var(--accent-deep);
+      }
+
+      .status-badge.error {
+        background: rgba(180, 77, 77, 0.12);
+        color: #8a2f2f;
+      }
+
+      .face-preview-stage {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        margin-top: 14px;
+        border-radius: 16px;
+        background: rgba(79, 56, 46, 0.18);
+      }
+
+      .face-preview-stage video,
+      .face-preview-stage canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+      }
+
+      .face-preview-stage canvas {
+        pointer-events: none;
+      }
+
+      .face-preview-controls {
+        display: flex;
+        margin-top: 12px;
+      }
+
+      .face-preview-button {
+        border: 0;
+        padding: 11px 16px;
+        background: var(--accent);
+        color: #fff8f2;
+        font: inherit;
+        font-size: 0.86rem;
+        cursor: pointer;
+        transition: background 160ms ease, transform 160ms ease, opacity 160ms ease;
+      }
+
+      .face-preview-button:hover:not(:disabled) {
+        background: #764d3f;
+        transform: translateY(-1px);
+      }
+
+      .face-preview-button:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+
+      .face-readout,
+      .blendshape-panel {
+        margin-top: 12px;
+        padding: 14px;
+        border-radius: 16px;
+      }
+
+      .face-readout-label {
+        display: block;
+        margin-top: 12px;
+        margin-bottom: 4px;
+        color: #9a6d5c;
+      }
+
+      .face-readout-label:first-child {
+        margin-top: 0;
+      }
+
+      .face-readout-value {
+        font-size: 0.83rem;
+      }
+
+      .emotion-callout {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.55);
+        border: 1px solid rgba(115, 81, 67, 0.12);
+      }
+
+      .emotion-callout[data-tone="joy"] {
+        background: linear-gradient(135deg, rgba(255, 237, 197, 0.98), rgba(255, 221, 153, 0.78));
+      }
+
+      .emotion-callout[data-tone="surprise"] {
+        background: linear-gradient(135deg, rgba(223, 244, 255, 0.98), rgba(180, 224, 255, 0.8));
+      }
+
+      .emotion-callout[data-tone="anger"],
+      .emotion-callout[data-tone="disgust"] {
+        background: linear-gradient(135deg, rgba(255, 225, 218, 0.98), rgba(255, 197, 177, 0.78));
+      }
+
+      .emotion-callout[data-tone="sadness"],
+      .emotion-callout[data-tone="fear"] {
+        background: linear-gradient(135deg, rgba(233, 239, 255, 0.98), rgba(204, 217, 247, 0.78));
+      }
+
+      .emotion-label {
+        font-size: 1.5rem;
+      }
+
+      .emotion-confidence {
+        font-size: 0.94rem;
+        font-weight: 800;
+        color: var(--muted);
+      }
+
+      .metrics-panel {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .metric-box {
+        padding: 14px;
+        border-radius: 16px;
+      }
+
+      .metric-label {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .metric-value {
+        font-size: 1.35rem;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 11px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(115, 81, 67, 0.14);
+        font-size: 0.78rem;
+        color: var(--ink);
+      }
+
+      .tag.placeholder {
+        color: var(--muted);
+      }
+
+      .blend-shapes-list {
+        list-style: none;
+        margin: 12px 0 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+        max-height: 280px;
+        overflow: auto;
+      }
+
+      .blend-shape-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 64px;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .blend-shape-name {
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: #5f4337;
+      }
+
+      .blend-shape-bar {
+        position: relative;
+        margin-top: 6px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(115, 81, 67, 0.12);
+        overflow: hidden;
+      }
+
+      .blend-shape-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--teal), #ef8d63);
+      }
+
+      .blend-shape-score {
+        text-align: right;
+        font-size: 0.82rem;
+        color: var(--muted);
+        font-family: "Space Grotesk", sans-serif;
+      }
+
+      @media (max-width: 640px) {
+        .layout {
+          width: min(100% - 20px, 1200px);
+          padding: 10px 0;
+        }
+
+        .emotion-callout {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout">
+      <aside id="demos" class="face-preview invisible">
+        <div class="face-preview-header">
+          <div>
+            <div class="face-preview-title">Face Preview</div>
+            <div class="face-preview-subtitle">
+              Direct-open webcam demo with live blendshape readout
+            </div>
+          </div>
+          <div class="face-preview-meta">
+            <span id="statusBadge" class="status-badge loading">Preparing model</span>
+            <span id="fpsChip" class="chip">Waiting for webcam</span>
+          </div>
+        </div>
+
+        <div class="face-preview-stage">
+          <video id="webcam" autoplay playsinline muted></video>
+          <canvas id="output_canvas"></canvas>
+        </div>
+
+        <div class="face-preview-controls">
+          <button id="webcamButton" class="face-preview-button" disabled>
+            Loading Model...
+          </button>
+        </div>
+
+        <section class="face-readout">
+          <div id="emotionCallout" class="emotion-callout" data-tone="neutral">
+            <span id="emotionLabel" class="emotion-label">Awaiting input</span>
+            <span id="emotionConfidence" class="emotion-confidence">0%</span>
+          </div>
+
+          <span class="face-readout-label">Emotion explanation</span>
+          <div id="emotionReason" class="face-readout-value">
+            Start the webcam to begin live facial analysis.
+          </div>
+
+          <span class="face-readout-label">Expression summary</span>
+          <div id="expressionSummary" class="face-readout-value">
+            Waiting for webcam...
+          </div>
+
+          <span class="face-readout-label">Strongest signal</span>
+          <div id="signalSummary" class="face-readout-value">
+            No face signal yet.
+          </div>
+        </section>
+
+        <section class="metrics-panel">
+          <article class="metric-box">
+            <span class="metric-label">Smile</span>
+            <strong id="smileMetric" class="metric-value">0%</strong>
+          </article>
+          <article class="metric-box">
+            <span class="metric-label">Brow Raise</span>
+            <strong id="browMetric" class="metric-value">0%</strong>
+          </article>
+          <article class="metric-box">
+            <span class="metric-label">Eye Wide</span>
+            <strong id="eyeMetric" class="metric-value">0%</strong>
+          </article>
+          <article class="metric-box">
+            <span class="metric-label">Jaw Open</span>
+            <strong id="jawMetric" class="metric-value">0%</strong>
+          </article>
+        </section>
+
+        <section class="face-readout">
+          <span class="face-readout-label">Detected movement cues</span>
+          <div id="expressionTags" class="tag-list">
+            <span class="tag placeholder">No face detected yet</span>
+          </div>
+        </section>
+
+        <section class="blendshape-panel">
+          <div class="blendshape-header">
+            <span class="face-preview-title">Top blendshapes</span>
+            <span id="blendshapeCount" class="chip">0 active</span>
+          </div>
+          <ul id="video-blend-shapes" class="blend-shapes-list"></ul>
+        </section>
+      </aside>
+    </main>
+    <script type="module">
+      import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm";
+
+      const { FaceLandmarker, FilesetResolver, DrawingUtils } = vision;
+
+      const MODEL_ASSET_PATH =
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+      const WASM_PATH =
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm";
+      const MAX_BLENDSHAPES_TO_SHOW = 12;
+
+      const demosSection = document.getElementById("demos");
+      const video = document.getElementById("webcam");
+      const canvasElement = document.getElementById("output_canvas");
+      const webcamButton = document.getElementById("webcamButton");
+      const statusBadge = document.getElementById("statusBadge");
+      const fpsChip = document.getElementById("fpsChip");
+      const emotionCallout = document.getElementById("emotionCallout");
+      const emotionLabel = document.getElementById("emotionLabel");
+      const emotionConfidence = document.getElementById("emotionConfidence");
+      const emotionReason = document.getElementById("emotionReason");
+      const expressionSummary = document.getElementById("expressionSummary");
+      const signalSummary = document.getElementById("signalSummary");
+      const expressionTags = document.getElementById("expressionTags");
+      const videoBlendShapes = document.getElementById("video-blend-shapes");
+      const blendshapeCount = document.getElementById("blendshapeCount");
+      const smileMetric = document.getElementById("smileMetric");
+      const browMetric = document.getElementById("browMetric");
+      const eyeMetric = document.getElementById("eyeMetric");
+      const jawMetric = document.getElementById("jawMetric");
+
+      const canvasCtx = canvasElement.getContext("2d");
+      const drawingUtils = new DrawingUtils(canvasCtx);
+
+      let faceLandmarker;
+      let webcamRunning = false;
+      let mediaStream = null;
+      let lastVideoTime = -1;
+      let animationFrameId = null;
+      let lastAnimationTimestamp = 0;
+      let latestResults = null;
+
+      function updateStatus(type, text) {
+        statusBadge.textContent = text;
+        statusBadge.className = `status-badge ${type}`;
+      }
+
+      function formatPercent(value) {
+        return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+      }
+
+      function formatBlendshapeName(name) {
+        return name
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (char) => char.toUpperCase());
+      }
+
+      function clamp(value, min = 0, max = 1) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function averageScore(scores, keys) {
+        if (!keys.length) {
+          return 0;
+        }
+
+        const total = keys.reduce((sum, key) => sum + (scores[key] || 0), 0);
+        return total / keys.length;
+      }
+
+      function toScoreMap(faceBlendshapes) {
+        const categories = faceBlendshapes?.[0]?.categories || [];
+        return categories.reduce((accumulator, category) => {
+          accumulator[category.categoryName] = category.score;
+          return accumulator;
+        }, {});
+      }
+
+      function renderTags(tags) {
+        expressionTags.innerHTML = tags.length
+          ? tags.map((tag) => `<span class="tag">${tag}</span>`).join("")
+          : '<span class="tag placeholder">No strong movement cues yet</span>';
+      }
+
+      function getTopBlendshape(faceBlendshapes) {
+        const categories = faceBlendshapes?.[0]?.categories || [];
+        if (!categories.length) {
+          return null;
+        }
+
+        return categories.slice().sort((a, b) => b.score - a.score)[0];
+      }
+
+      function setIdleState(message) {
+        emotionCallout.dataset.tone = "neutral";
+        emotionLabel.textContent = "Awaiting input";
+        emotionConfidence.textContent = "0%";
+        emotionReason.textContent = message;
+        expressionSummary.textContent = "Waiting for webcam...";
+        signalSummary.textContent = "No face signal yet.";
+        renderTags([]);
+        smileMetric.textContent = "0%";
+        browMetric.textContent = "0%";
+        eyeMetric.textContent = "0%";
+        jawMetric.textContent = "0%";
+        blendshapeCount.textContent = "0 active";
+        videoBlendShapes.innerHTML = "";
+      }
+
+      function buildCues(scores) {
+        return {
+          smile: averageScore(scores, [
+            "mouthSmileLeft",
+            "mouthSmileRight",
+            "mouthDimpleLeft",
+            "mouthDimpleRight",
+          ]),
+          cheekLift: averageScore(scores, ["cheekSquintLeft", "cheekSquintRight"]),
+          frown: averageScore(scores, ["mouthFrownLeft", "mouthFrownRight"]),
+          browRaise: averageScore(scores, [
+            "browInnerUp",
+            "browOuterUpLeft",
+            "browOuterUpRight",
+          ]),
+          browDown: averageScore(scores, ["browDownLeft", "browDownRight"]),
+          eyeWide: averageScore(scores, ["eyeWideLeft", "eyeWideRight"]),
+          eyeSquint: averageScore(scores, ["eyeSquintLeft", "eyeSquintRight"]),
+          jawOpen: scores.jawOpen || 0,
+          mouthFunnel: scores.mouthFunnel || 0,
+          mouthStretch: averageScore(scores, ["mouthStretchLeft", "mouthStretchRight"]),
+          mouthPress: averageScore(scores, ["mouthPressLeft", "mouthPressRight"]),
+          mouthUpperUp: averageScore(scores, ["mouthUpperUpLeft", "mouthUpperUpRight"]),
+          mouthShrug: averageScore(scores, ["mouthShrugLower", "mouthShrugUpper"]),
+          mouthPucker: scores.mouthPucker || 0,
+          noseSneer: averageScore(scores, ["noseSneerLeft", "noseSneerRight"]),
+          blink: averageScore(scores, ["eyeBlinkLeft", "eyeBlinkRight"]),
+          jawForward: scores.jawForward || 0,
+        };
+      }
+
+      function analyzeEmotion(scores) {
+        const cues = buildCues(scores);
+
+        const emotionCandidates = [
+          {
+            label: "Joy",
+            tone: "joy",
+            score: clamp(cues.smile * 0.7 + cues.cheekLift * 0.25 - cues.frown * 0.1),
+            reason: "Strong smile activity with supporting cheek movement.",
+          },
+          {
+            label: "Surprise",
+            tone: "surprise",
+            score: clamp(
+              cues.jawOpen * 0.3 +
+                cues.eyeWide * 0.25 +
+                cues.browRaise * 0.25 +
+                cues.mouthFunnel * 0.2
+            ),
+            reason: "Raised brows, widened eyes, and an open mouth are all elevated.",
+          },
+          {
+            label: "Anger",
+            tone: "anger",
+            score: clamp(
+              cues.browDown * 0.3 +
+                cues.mouthPress * 0.2 +
+                cues.noseSneer * 0.2 +
+                cues.frown * 0.15 +
+                cues.jawForward * 0.15
+            ),
+            reason: "Lowered brows and facial tension suggest a more forceful expression.",
+          },
+          {
+            label: "Sadness",
+            tone: "sadness",
+            score: clamp(cues.frown * 0.45 + cues.browRaise * 0.3 + cues.mouthShrug * 0.2),
+            reason: "Frown cues with inner brow lift lean toward a sad expression.",
+          },
+          {
+            label: "Fear",
+            tone: "fear",
+            score: clamp(
+              cues.eyeWide * 0.3 +
+                cues.browRaise * 0.2 +
+                cues.mouthStretch * 0.25 +
+                cues.jawOpen * 0.2
+            ),
+            reason: "Wide eyes plus stretched mouth activity resemble a fearful reaction.",
+          },
+          {
+            label: "Disgust",
+            tone: "disgust",
+            score: clamp(
+              cues.noseSneer * 0.4 + cues.mouthUpperUp * 0.25 + cues.browDown * 0.2
+            ),
+            reason: "Nose sneer and upper-lip raise are the strongest cues here.",
+          },
+        ];
+
+        const strongestEmotion = emotionCandidates.reduce((best, candidate) =>
+          candidate.score > best.score ? candidate : best
+        );
+
+        const expressionEnergy = clamp(
+          Math.max(
+            strongestEmotion.score,
+            cues.smile,
+            cues.browRaise,
+            cues.browDown,
+            cues.eyeWide,
+            cues.jawOpen
+          )
+        );
+
+        const tags = [];
+        if (cues.smile > 0.28) tags.push("Smiling");
+        if (cues.frown > 0.22) tags.push("Frowning");
+        if (cues.browRaise > 0.24) tags.push("Eyebrows raised");
+        if (cues.browDown > 0.24) tags.push("Brows lowered");
+        if (cues.eyeWide > 0.22) tags.push("Eyes widened");
+        if (cues.eyeSquint > 0.24) tags.push("Eyes squinting");
+        if (cues.jawOpen > 0.2) tags.push("Mouth open");
+        if (cues.mouthPucker > 0.2) tags.push("Lips pursed");
+        if (cues.noseSneer > 0.18) tags.push("Nose sneer");
+        if (cues.blink > 0.58) tags.push("Blink detected");
+
+        if (expressionEnergy < 0.18) {
+          return {
+            label: "Neutral / Resting",
+            tone: "neutral",
+            confidence: 0.62,
+            reason: "The face appears relatively relaxed, with no single movement cue dominating.",
+            tags: tags.length ? tags : ["Resting expression"],
+            cues,
+          };
+        }
+
+        return {
+          label: strongestEmotion.label,
+          tone: strongestEmotion.tone,
+          confidence: clamp(strongestEmotion.score),
+          reason: strongestEmotion.reason,
+          tags: tags.length ? tags : ["Subtle expression"],
+          cues,
+        };
+      }
+
+      function drawBlendShapes(faceBlendshapes) {
+        const categories = (faceBlendshapes?.[0]?.categories || [])
+          .slice()
+          .sort((a, b) => b.score - a.score)
+          .filter((item) => item.score >= 0.01)
+          .slice(0, MAX_BLENDSHAPES_TO_SHOW);
+
+        blendshapeCount.textContent = `${categories.length} active`;
+
+        if (!categories.length) {
+          videoBlendShapes.innerHTML = "";
+          return;
+        }
+
+        videoBlendShapes.innerHTML = categories
+          .map(
+            (shape) => `
+              <li class="blend-shape-row">
+                <div>
+                  <div class="blend-shape-name">${formatBlendshapeName(shape.categoryName)}</div>
+                  <div class="blend-shape-bar">
+                    <span class="blend-shape-fill" style="width: ${Math.max(
+                      shape.score * 100,
+                      2
+                    )}%"></span>
+                  </div>
+                </div>
+                <div class="blend-shape-score">${shape.score.toFixed(3)}</div>
+              </li>
+            `
+          )
+          .join("");
+      }
+
+      function renderAnalysis(faceBlendshapes) {
+        const scores = toScoreMap(faceBlendshapes);
+        const analysis = analyzeEmotion(scores);
+        const topBlendshape = getTopBlendshape(faceBlendshapes);
+
+        emotionCallout.dataset.tone = analysis.tone;
+        emotionLabel.textContent = analysis.label;
+        emotionConfidence.textContent = formatPercent(analysis.confidence);
+        emotionReason.textContent = analysis.reason;
+        expressionSummary.textContent = analysis.tags.join(", ");
+        signalSummary.textContent = topBlendshape
+          ? `${formatBlendshapeName(topBlendshape.categoryName)} at ${formatPercent(
+              topBlendshape.score
+            )}`
+          : "No dominant signal available.";
+
+        smileMetric.textContent = formatPercent(analysis.cues.smile);
+        browMetric.textContent = formatPercent(analysis.cues.browRaise);
+        eyeMetric.textContent = formatPercent(analysis.cues.eyeWide);
+        jawMetric.textContent = formatPercent(analysis.cues.jawOpen);
+
+        renderTags(analysis.tags);
+        drawBlendShapes(faceBlendshapes);
+      }
+
+      function resizeCanvasToVideo() {
+        if (!video.videoWidth || !video.videoHeight) {
+          return;
+        }
+
+        if (
+          canvasElement.width !== video.videoWidth ||
+          canvasElement.height !== video.videoHeight
+        ) {
+          canvasElement.width = video.videoWidth;
+          canvasElement.height = video.videoHeight;
+        }
+      }
+
+      function drawLandmarks(results) {
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+        if (!results?.faceLandmarks?.length) {
+          return;
+        }
+
+        for (const landmarks of results.faceLandmarks) {
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+            { color: "#f7f3ee88", lineWidth: 1 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+            { color: "#ffd9ac", lineWidth: 1.5 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_LIPS,
+            { color: "#ff9c5b", lineWidth: 1.8 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+            { color: "#77e6d7", lineWidth: 1.5 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+            { color: "#77e6d7", lineWidth: 1.5 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
+            { color: "#fff0c2", lineWidth: 1.5 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
+            { color: "#fff0c2", lineWidth: 1.5 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_LEFT_IRIS,
+            { color: "#ffffff", lineWidth: 1.2 }
+          );
+          drawingUtils.drawConnectors(
+            landmarks,
+            FaceLandmarker.FACE_LANDMARKS_RIGHT_IRIS,
+            { color: "#ffffff", lineWidth: 1.2 }
+          );
+        }
+      }
+
+      async function createFaceLandmarker() {
+        updateStatus("loading", "Loading model");
+
+        try {
+          const filesetResolver = await FilesetResolver.forVisionTasks(WASM_PATH);
+
+          try {
+            faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+              baseOptions: {
+                modelAssetPath: MODEL_ASSET_PATH,
+                delegate: "GPU",
+              },
+              outputFaceBlendshapes: true,
+              runningMode: "VIDEO",
+              numFaces: 1,
+            });
+            updateStatus("ready", "Model ready (GPU)");
+          } catch (gpuError) {
+            console.warn("GPU delegate unavailable, falling back to CPU.", gpuError);
+            faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+              baseOptions: {
+                modelAssetPath: MODEL_ASSET_PATH,
+                delegate: "CPU",
+              },
+              outputFaceBlendshapes: true,
+              runningMode: "VIDEO",
+              numFaces: 1,
+            });
+            updateStatus("ready", "Model ready (CPU)");
+          }
+
+          webcamButton.disabled = false;
+          webcamButton.textContent = "Start Webcam Analysis";
+          demosSection.classList.remove("invisible");
+        } catch (error) {
+          console.error("Failed to create the face landmarker.", error);
+          updateStatus("error", "Model failed to load");
+          emotionReason.textContent =
+            "The MediaPipe model could not be initialized. Check the browser console for details.";
+        }
+      }
+
+      function stopStream() {
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+        }
+
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          mediaStream = null;
+        }
+
+        webcamRunning = false;
+        lastVideoTime = -1;
+        lastAnimationTimestamp = 0;
+        latestResults = null;
+        video.srcObject = null;
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        webcamButton.textContent = "Start Webcam Analysis";
+        updateStatus("ready", "Model ready");
+        fpsChip.textContent = "Webcam stopped";
+        setIdleState("The webcam is off. Start it again to resume live analysis.");
+      }
+
+      async function startWebcam() {
+        if (!faceLandmarker) {
+          return;
+        }
+
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+          updateStatus("error", "Webcam unsupported");
+          emotionReason.textContent =
+            "Your browser does not support getUserMedia, which is required for webcam access.";
+          return;
+        }
+
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          });
+
+          video.srcObject = mediaStream;
+
+          if (video.readyState < 2) {
+            await new Promise((resolve) => {
+              video.addEventListener("loadeddata", resolve, { once: true });
+            });
+          }
+
+          await video.play();
+
+          webcamRunning = true;
+          webcamButton.textContent = "Stop Webcam Analysis";
+          updateStatus("active", "Webcam running");
+          fpsChip.textContent = "Analyzing live video";
+          animationFrameId = requestAnimationFrame(predictWebcam);
+        } catch (error) {
+          console.error("Unable to access webcam.", error);
+          updateStatus("error", "Camera permission denied");
+          emotionReason.textContent =
+            "The webcam could not be started. Check browser permissions and try again.";
+        }
+      }
+
+      async function toggleWebcam() {
+        if (webcamRunning) {
+          stopStream();
+          return;
+        }
+
+        await startWebcam();
+      }
+
+      function predictWebcam(timestamp) {
+        if (!webcamRunning || !faceLandmarker) {
+          return;
+        }
+
+        resizeCanvasToVideo();
+
+        if (lastAnimationTimestamp) {
+          const fps = 1000 / Math.max(1, timestamp - lastAnimationTimestamp);
+          fpsChip.textContent = `${fps.toFixed(1)} FPS`;
+        }
+        lastAnimationTimestamp = timestamp;
+
+        if (lastVideoTime !== video.currentTime) {
+          lastVideoTime = video.currentTime;
+          latestResults = faceLandmarker.detectForVideo(video, performance.now());
+        }
+
+        if (latestResults?.faceLandmarks?.length) {
+          drawLandmarks(latestResults);
+          renderAnalysis(latestResults.faceBlendshapes);
+        } else {
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+          emotionCallout.dataset.tone = "neutral";
+          emotionLabel.textContent = "No face found";
+          emotionConfidence.textContent = "0%";
+          emotionReason.textContent =
+            "The camera is live, but no face is clearly visible to the model right now.";
+          expressionSummary.textContent = "No readable facial expression yet.";
+          signalSummary.textContent = "Move closer to the webcam for stronger signals.";
+          renderTags(["Move closer to the camera", "Face the lens directly"]);
+          smileMetric.textContent = "0%";
+          browMetric.textContent = "0%";
+          eyeMetric.textContent = "0%";
+          jawMetric.textContent = "0%";
+          blendshapeCount.textContent = "0 active";
+          videoBlendShapes.innerHTML = "";
+        }
+
+        animationFrameId = requestAnimationFrame(predictWebcam);
+      }
+
+      webcamButton.addEventListener("click", toggleWebcam);
+      window.addEventListener("beforeunload", stopStream);
+
+      setIdleState("Start the webcam to begin live facial analysis.");
+      createFaceLandmarker();
+    </script>
+  </body>
+</html>
